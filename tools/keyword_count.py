@@ -163,15 +163,13 @@ def build_terms(keyword, extra):
 
 
 def count(text, term):
-    """띄어쓰기 없이 붙여 쓴 경우(제네시스챔피언십)도 같은 키워드로 센다.
+    """띄어쓰기가 달라도 같은 키워드로 센다.
 
+    "재혼 황후 드라마"는 재혼황후 드라마, 재혼 황후드라마, 재혼황후드라마도 센다.
     짧은 단어는 긴 단어 안에 들어 있어도 센다. '우승'은 '우승상금' 안의 '우승'도 포함한다.
     """
-    n = text.count(term)
-    joined = term.replace(" ", "")
-    if joined != term:
-        n += text.count(joined)
-    return n
+    pattern = r"\s*".join(re.escape(w) for w in term.split())
+    return len(re.findall(pattern, text))
 
 
 def main():
