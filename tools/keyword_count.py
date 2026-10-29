@@ -36,6 +36,8 @@ BODY_MARKERS = (
     "wrap_body",
 )
 SKIP_TAGS = {"script", "style", "noscript", "iframe", "svg", "button"}
+# 본문 영역 안에 블로그가 자동으로 붙이는 목록 (카테고리의 다른 글, 공감 버튼, 광고)
+SKIP_CLASSES = ("another_category", "container_postbtn", "revenue_unit", "related-articles")
 VOID_TAGS = {
     "area", "base", "br", "col", "embed", "hr", "img", "input",
     "link", "meta", "source", "track", "wbr",
@@ -70,7 +72,8 @@ class BodyParser(HTMLParser):
             if any(m in marker for m in BODY_MARKERS):
                 self.body_depth = 1
                 self.body_found = True
-        if self.skip_depth or tag in SKIP_TAGS:
+        skip_class = any(c in (attrs.get("class") or "") for c in SKIP_CLASSES)
+        if self.skip_depth or tag in SKIP_TAGS or skip_class:
             self.skip_depth += 1
 
     def handle_startendtag(self, tag, attrs):
@@ -96,7 +99,7 @@ class BodyParser(HTMLParser):
         src = " ".join(
             attrs.get(k) or "" for k in ("src", "data-src", "data-lazy-src", "class")
         ).lower()
-        if any(h in src for h in STICKER_HINTS):
+        if self.skip_depth or any(h in src for h in STICKER_HINTS):
             return
         self.all_imgs += 1
         if self.body_depth:
