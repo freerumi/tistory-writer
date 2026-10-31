@@ -181,7 +181,10 @@ def main():
     ap.add_argument("source", help="상위 노출 글 URL 또는 저장한 HTML 파일")
     ap.add_argument("--extra", default="", help="추가로 셀 단어, 쉼표 구분. 예: 우승,상금")
     ap.add_argument("--compare", help="비교할 내 글 HTML 파일")
+    ap.add_argument("--max-extra", type=int, default=MAX_EXTRA,
+                    help=f"상위 글보다 최대 몇 개까지 더 넣을지 (기본 {MAX_EXTRA})")
     args = ap.parse_args()
+    max_extra = args.max_extra
 
     terms = build_terms(args.keyword, args.extra.split(","))
     top_text, top_imgs = analyze(args.source)
@@ -194,7 +197,7 @@ def main():
         print(pad("키워드", 28) + pad("상위 글", 10) + "내 글 목표")
         for t in terms:
             c = count(top_text, t)
-            print(pad(t, 28) + pad(c, 10) + f"{c + MIN_EXTRA}~{c + MAX_EXTRA}")
+            print(pad(t, 28) + pad(c, 10) + f"{c + MIN_EXTRA}~{c + max_extra}")
         return
 
     my_text, _ = analyze(args.compare)
@@ -206,7 +209,7 @@ def main():
     all_ok = True
     for t in terms:
         top_c, my_c = count(top_text, t), count(my_text, t)
-        lo, hi = top_c + MIN_EXTRA, top_c + MAX_EXTRA
+        lo, hi = top_c + MIN_EXTRA, top_c + max_extra
         if my_c < lo:
             verdict, all_ok = f"부족 (+{lo - my_c} 필요)", False
         elif my_c > hi:
