@@ -175,40 +175,66 @@ def count(text, term):
     return len(re.findall(pattern, text))
 
 
+def short(src):
+    return src.rstrip("/").split("/")[-1] if "/" in src else src
+
+
 def main():
     ap = argparse.ArgumentParser(description="블로그 글 키워드·사진 수 세기")
-    ap.add_argument("keyword", help='메인 키워드. 예: "제네시스 챔피언십 우승상금"')
-    ap.add_argument("source", help="상위 노출 글 URL 또는 저장한 HTML 파일")
+    ap.add_argument("keyword", nargs="?", help='메인 키워드. 예: "제네시스 챔피언십 우승상금"')
+    ap.add_argument("source", nargs="?", help="상위 노출 글 URL 또는 저장한 HTML 파일")
     ap.add_argument("--extra", default="", help="추가로 셀 단어, 쉼표 구분. 예: 우승,상금")
+    ap.add_argument("--set", action="append", default=[], metavar="'키워드|소스[|추가1,추가2]'",
+                    help="키워드를 여러 개 한 번에 비교. 같은 단어는 가장 많이 쓴 상위 글을 기준으로 한다")
     ap.add_argument("--compare", help="비교할 내 글 HTML 파일")
     ap.add_argument("--max-extra", type=int, default=MAX_EXTRA,
                     help=f"상위 글보다 최대 몇 개까지 더 넣을지 (기본 {MAX_EXTRA})")
     args = ap.parse_args()
     max_extra = args.max_extra
 
-    terms = build_terms(args.keyword, args.extra.split(","))
-    top_text, top_imgs = analyze(args.source)
-    if not top_text:
-        sys.exit("본문을 찾지 못했습니다. 브라우저에서 글을 저장한 .html 파일로 다시 시도해 주세요.")
+    sets = []
+    if args.keyword and args.source:
+        sets.append((args.keyword, args.source, args.extra))
+    for item in args.set:
+        parts = item.split("|")
+        if len(parts) < 2:
+            sys.exit(f"--set 형식 오류: {item}")
+        sets.append((parts[0], parts[1], parts[2] if len(parts) > 2 else ""))
+    if not sets:
+        ap.error("키워드와 상위 글, 또는 --set 을 지정하세요.")
 
+    cache, base, top_imgs = {}, {}, 0
+    for kw, src, extra in sets:
+        if src not in cache:
+            cache[src] = analyze(src)
+            if not cache[src][0]:
+                sys.exit(f"본문을 찾지 못했습니다: {src}\n브라우저에서 저장한 .html 파일로 다시 시도해 주세요.")
+        text, imgs = cache[src]
+        top_imgs = max(top_imgs, imgs)
+        for t in build_terms(kw, extra.split(",")):
+            c = count(text, t)
+            if t not in base or c > base[t][0]:
+                base[t] = (c, src)
+    multi = len(cache) > 1
+
+    for src, (text, imgs) in cache.items():
+        print(f"상위 글: {src}  ({len(text):,}자, 사진 {imgs}장)")
     if not args.compare:
-        print(f"상위 글: {args.source}")
-        print(f"본문 글자 수: {len(top_text):,}자 / 사진: {top_imgs}장 → 내 글 목표 {top_imgs + MIN_EXTRA}장 이상\n")
-        print(pad("키워드", 28) + pad("상위 글", 10) + "내 글 목표")
-        for t in terms:
-            c = count(top_text, t)
-            print(pad(t, 28) + pad(c, 10) + f"{c + MIN_EXTRA}~{c + max_extra}")
+        print(f"사진: 내 글 목표 {top_imgs + MIN_EXTRA}장 이상\n")
+        print(pad("키워드", 28) + pad("상위 글", 10) + (pad("기준 글", 24) if multi else "") + "내 글 목표")
+        for t, (c, src) in base.items():
+            print(pad(t, 28) + pad(c, 10) + (pad(short(src), 24) if multi else "")
+                  + f"{c + MIN_EXTRA}~{c + max_extra}")
         return
 
     my_text, _ = analyze(args.compare)
-    print(f"상위 글: {args.source}")
-    print(f"내 글:   {args.compare}")
-    print(f"본문 글자 수: 상위 {len(top_text):,}자 / 내 글 {len(my_text):,}자")
-    print(f"사진: 상위 글 {top_imgs}장 → 내 글에 {top_imgs + MIN_EXTRA}장 이상 넣으세요\n")
-    print(pad("키워드", 28) + pad("상위 글", 10) + pad("내 글", 8) + pad("목표", 10) + "판정")
+    print(f"내 글:   {args.compare}  ({len(my_text):,}자)")
+    print(f"사진: 상위 글 최대 {top_imgs}장 → 내 글에 {top_imgs + MIN_EXTRA}장 이상 넣으세요\n")
+    print(pad("키워드", 28) + pad("상위 글", 10) + (pad("기준 글", 24) if multi else "")
+          + pad("내 글", 8) + pad("목표", 10) + "판정")
     all_ok = True
-    for t in terms:
-        top_c, my_c = count(top_text, t), count(my_text, t)
+    for t, (top_c, src) in base.items():
+        my_c = count(my_text, t)
         lo, hi = top_c + MIN_EXTRA, top_c + max_extra
         if my_c < lo:
             verdict, all_ok = f"부족 (+{lo - my_c} 필요)", False
@@ -216,7 +242,8 @@ def main():
             verdict, all_ok = f"초과 (-{my_c - hi} 필요)", False
         else:
             verdict = "OK"
-        print(pad(t, 28) + pad(top_c, 10) + pad(my_c, 8) + pad(f"{lo}~{hi}", 10) + verdict)
+        print(pad(t, 28) + pad(top_c, 10) + (pad(short(src), 24) if multi else "")
+              + pad(my_c, 8) + pad(f"{lo}~{hi}", 10) + verdict)
     print("\n모든 키워드가 목표 범위 안에 있습니다." if all_ok else "\n목표 범위를 벗어난 키워드가 있습니다.")
     sys.exit(0 if all_ok else 1)
 

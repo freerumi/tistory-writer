@@ -52,3 +52,21 @@ python3 tools/keyword_count.py "제네시스 챔피언십 우승상금" https://
 - `.claude/skills/tistory-post/SKILL.md`: 글 구조, 문체, HTML 서식 규칙
 - `examples/`: 스타일 기준이 되는 예시 글 (절기, 스포츠, 영화)
 - `posts/`: 생성된 글
+
+## 여러 키워드를 한 글로 맞추기
+
+```
+python3 tools/keyword_count.py --max-extra 2 --compare posts/내글.html \
+  --set "영화 머니볼|https://1위글|머니볼 영화" --set "머니볼 실화|https://1위글" --set "머니볼 결말|https://1위글"
+```
+
+같은 단어가 여러 1위 글에 나오면 그 단어를 가장 많이 쓴 글을 기준으로 합니다.
+
+## 중복 검사
+
+```
+python3 tools/dup_check.py posts/내글.html https://1위글1 https://1위글2 --posts
+```
+
+띄어쓰기·문장부호를 빼고 비교해, 12글자 조각 겹침 비율(5% 이상 경고)과 25글자 이상 똑같은 구간을 찾습니다. `--posts`를 붙이면 내 다른 글과도 비교합니다.
+
