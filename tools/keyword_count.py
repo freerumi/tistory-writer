@@ -45,7 +45,10 @@ VOID_TAGS = {
 STICKER_HINTS = ("sticker", "emoticon", "emoji")
 
 MIN_EXTRA = 1
-MAX_EXTRA = 5
+PREFERRED_EXTRA = 2  # 목표는 +1~+2
+MAX_EXTRA = 5  # 불가피할 때도 +5를 넘지 않는다
+# 시간이 지나면 틀린 말이 되는 상대 시간 표현 (오늘날은 제외)
+RELATIVE_TIME = re.compile(r"오늘(?!날)|내일|어제|이번 ?주말?|다음 ?주|지난 ?주|올해|내년|작년|지난해")
 
 
 class BodyParser(HTMLParser):
@@ -240,11 +243,19 @@ def main():
             verdict, all_ok = f"부족 (+{lo - my_c} 필요)", False
         elif my_c > hi:
             verdict, all_ok = f"초과 (-{my_c - hi} 필요)", False
+        elif my_c > top_c + PREFERRED_EXTRA:
+            verdict = f"허용 (+{my_c - top_c})"
         else:
             verdict = "OK"
         print(pad(t, 28) + pad(top_c, 10) + (pad(short(src), 24) if multi else "")
               + pad(my_c, 8) + pad(f"{lo}~{hi}", 10) + verdict)
     print("\n모든 키워드가 목표 범위 안에 있습니다." if all_ok else "\n목표 범위를 벗어난 키워드가 있습니다.")
+    rel = [my_text[max(0, m.start() - 12):m.end() + 12] for m in RELATIVE_TIME.finditer(my_text)]
+    if rel:
+        all_ok = False
+        print("\n상대 시간 표현이 있습니다. 날짜로 바꾸세요:")
+        for r in rel:
+            print(f"  └ …{r}…")
     sys.exit(0 if all_ok else 1)
 
 
